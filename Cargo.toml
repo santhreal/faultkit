@@ -1,0 +1,32 @@
+[package]
+name = "faultkit"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.85"
+license = "MIT"
+authors = ["Corum Collective LLC <contact@santh.io>"]
+repository = "https://github.com/santhsecurity/faultkit"
+description = "Fault injection for testing error paths — fail the Nth syscall and verify graceful handling"
+keywords = ["testing", "fault-injection", "error", "resilience", "sqlite"]
+categories = ["development-tools::testing"]
+
+[workspace]
+
+[dependencies]
+
+[dev-dependencies]
+tempfile = "3"
+criterion = "0.5"
+proptest = "1.0"
+
+[[bench]]
+name = "zero_cost"
+harness = false
+
+[lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
+todo = "deny"
+unimplemented = "deny"
+panic = "deny"
+pedantic = { level = "warn", priority = -1 }
