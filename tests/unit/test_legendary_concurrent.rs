@@ -1,10 +1,24 @@
-use std::sync::{Arc, Barrier};
+use std::sync::{Arc, Barrier, Mutex, OnceLock};
 use std::thread;
 
 use faultkit::{clear, inject, should_fail_mmap, Fault, Operation};
 
+// Both tests in this file mutate faultkit's global fault state via
+// `inject` + `clear` and observe it via `should_fail_mmap`. Default
+// `cargo test` runs tests in parallel, which lets the two tests
+// interleave their injects and observations — under load this drifts
+// the probabilistic hammer's failure count outside its [2000, 4500]
+// envelope (32000 calls × 0.1 expected, σ ≈ 54, but cross-test
+// contamination can shift the count by hundreds). Serialize within
+// this file with a static mutex.
+fn serial_lock() -> &'static Mutex<()> {
+    static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+    LOCK.get_or_init(|| Mutex::new(()))
+}
+
 #[test]
 fn test_legendary_concurrent_hammer() {
+    let _guard = serial_lock().lock().unwrap_or_else(|p| p.into_inner());
     clear();
 
     // Inject a failure at call 500
@@ -48,6 +62,7 @@ fn test_legendary_concurrent_hammer() {
 
 #[test]
 fn test_legendary_concurrent_probabilistic_hammer() {
+    let _guard = serial_lock().lock().unwrap_or_else(|p| p.into_inner());
     clear();
 
     // Inject a 10% probability of failure
