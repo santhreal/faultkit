@@ -1,5 +1,7 @@
 # faultkit
 
+Part of [Santh](https://santh.dev) - open source Rust security and infrastructure tooling. Follow [@SanthProject](https://x.com/SanthProject) on X.
+
 Fault injection for testing error paths. Fail the Nth syscall and verify graceful handling.
 
 ## Usage
