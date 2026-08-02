@@ -1,4 +1,3 @@
-#![no_std]
 #![warn(missing_docs, clippy::pedantic)]
 #![allow(clippy::must_use_candidate)]
 
@@ -34,6 +33,12 @@
 //! let _ = clear();
 //! ```
 //!
+//! # Thread-local vs global injection
+//! By default, [`inject`] and [`inject_scoped`] inject faults into the current
+//! thread only. This prevents one test from poisoning another in parallel test
+//! runs. For the rare cross-thread scenario, use [`inject_global`],
+//! [`try_inject_global`], or [`inject_scoped_global`].
+//!
 //! # Compile-time control
 //! Fault injection is always available. The state check is completely zero-cost when not
 //! active, enabling the compiler to optimize the check away in hot paths.
@@ -45,9 +50,9 @@ mod guard;
 mod inject;
 mod types;
 
-pub use guard::{inject_scoped, FaultGuard};
+pub use guard::{inject_scoped, inject_scoped_global, FaultGuard};
 pub use inject::{
-    clear, inject, is_enabled, should_fail_alloc, should_fail_mmap, should_fail_read,
-    should_fail_send, should_fail_write, try_inject,
+    clear, inject, inject_global, is_enabled, should_fail_alloc, should_fail_mmap,
+    should_fail_read, should_fail_send, should_fail_write, try_inject, try_inject_global,
 };
 pub use types::{ClearedFaults, Fault, InjectionError, Operation};

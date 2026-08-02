@@ -75,6 +75,23 @@ pub enum Fault {
     },
 }
 
+impl Fault {
+    /// The [`Operation`] this fault targets.
+    #[must_use]
+    pub fn operation(&self) -> Operation {
+        match self {
+            Self::Mmap { .. } => Operation::Mmap,
+            Self::Read { .. } => Operation::Read,
+            Self::Write { .. } => Operation::Write,
+            Self::Alloc { .. } => Operation::Alloc,
+            Self::Send { .. } => Operation::Send,
+            Self::Probabilistic { op, .. }
+            | Self::Persistent { op, .. }
+            | Self::Multiple { op, .. } => *op,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 /// Error when injecting a fault.
 pub enum InjectionError {
@@ -112,4 +129,11 @@ pub struct ClearedFaults {
     pub alloc: usize,
     /// Number of remaining send fail points cleared.
     pub send: usize,
+    /// Number of operations that had a persistent (`persist_after`) fault
+    /// cleared. Discrete `fail_points` are counted per-op above; persistent and
+    /// probabilistic faults were previously invisible in this summary.
+    pub persistent: usize,
+    /// Number of operations that had a probabilistic (`probability > 0.0`) fault
+    /// cleared.
+    pub probabilistic: usize,
 }

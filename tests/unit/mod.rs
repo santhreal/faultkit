@@ -2,13 +2,13 @@ use crate::common::TEST_LOCK;
 
 use faultkit::{
     clear, inject, inject_scoped, is_enabled, should_fail_alloc, should_fail_mmap,
-    should_fail_read, should_fail_send, should_fail_write, try_inject, ClearedFaults, Fault,
-    InjectionError, Operation,
+    should_fail_read, should_fail_send, should_fail_write, try_inject, Fault, InjectionError,
+    Operation,
 };
 
 #[test]
 fn test_default_state() {
-    let _lock = TEST_LOCK.lock().unwrap();
+    let _lock = TEST_LOCK.lock();
     clear();
     assert!(!is_enabled());
     assert!(!should_fail_mmap());
@@ -20,7 +20,7 @@ fn test_default_state() {
 
 #[test]
 fn test_clear_resets_state() {
-    let _lock = TEST_LOCK.lock().unwrap();
+    let _lock = TEST_LOCK.lock();
     clear();
     assert_eq!(inject(Fault::Mmap { fail_after: 0 }), Ok(()));
     assert!(is_enabled());
@@ -35,7 +35,7 @@ fn test_clear_resets_state() {
 
 #[test]
 fn test_inject_duplicate_errors() {
-    let _lock = TEST_LOCK.lock().unwrap();
+    let _lock = TEST_LOCK.lock();
     clear();
     assert_eq!(inject(Fault::Mmap { fail_after: 5 }), Ok(()));
     let err = inject(Fault::Mmap { fail_after: 5 });
@@ -44,7 +44,7 @@ fn test_inject_duplicate_errors() {
 
 #[test]
 fn test_inject_scoped() {
-    let _lock = TEST_LOCK.lock().unwrap();
+    let _lock = TEST_LOCK.lock();
     clear();
     {
         let _guard = inject_scoped(Fault::Read { fail_after: 0 }).unwrap();
@@ -57,7 +57,7 @@ fn test_inject_scoped() {
 
 #[test]
 fn test_mmap_failure() {
-    let _lock = TEST_LOCK.lock().unwrap();
+    let _lock = TEST_LOCK.lock();
     clear();
     assert_eq!(inject(Fault::Mmap { fail_after: 2 }), Ok(()));
     assert!(!should_fail_mmap()); // 0
@@ -68,7 +68,7 @@ fn test_mmap_failure() {
 
 #[test]
 fn test_read_failure() {
-    let _lock = TEST_LOCK.lock().unwrap();
+    let _lock = TEST_LOCK.lock();
     clear();
     assert_eq!(inject(Fault::Read { fail_after: 1 }), Ok(()));
     assert!(!should_fail_read()); // 0
@@ -78,7 +78,7 @@ fn test_read_failure() {
 
 #[test]
 fn test_write_failure() {
-    let _lock = TEST_LOCK.lock().unwrap();
+    let _lock = TEST_LOCK.lock();
     clear();
     assert_eq!(inject(Fault::Write { fail_after: 0 }), Ok(()));
     assert!(should_fail_write()); // 0
@@ -87,7 +87,7 @@ fn test_write_failure() {
 
 #[test]
 fn test_alloc_failure() {
-    let _lock = TEST_LOCK.lock().unwrap();
+    let _lock = TEST_LOCK.lock();
     clear();
     assert_eq!(inject(Fault::Alloc { fail_after: 3 }), Ok(()));
     assert!(!should_fail_alloc()); // 0
@@ -99,7 +99,7 @@ fn test_alloc_failure() {
 
 #[test]
 fn test_send_failure() {
-    let _lock = TEST_LOCK.lock().unwrap();
+    let _lock = TEST_LOCK.lock();
     clear();
     assert_eq!(inject(Fault::Send { fail_after: 0 }), Ok(()));
     assert!(should_fail_send()); // 0
@@ -108,7 +108,7 @@ fn test_send_failure() {
 
 #[test]
 fn test_probabilistic_failure() {
-    let _lock = TEST_LOCK.lock().unwrap();
+    let _lock = TEST_LOCK.lock();
     clear();
     assert_eq!(
         try_inject(Fault::Probabilistic {
@@ -138,7 +138,7 @@ fn test_probabilistic_failure() {
 
 #[test]
 fn test_persistent_failure() {
-    let _lock = TEST_LOCK.lock().unwrap();
+    let _lock = TEST_LOCK.lock();
     clear();
     assert_eq!(
         try_inject(Fault::Persistent {
@@ -157,7 +157,7 @@ fn test_persistent_failure() {
 
 #[test]
 fn test_multiple_failures() {
-    let _lock = TEST_LOCK.lock().unwrap();
+    let _lock = TEST_LOCK.lock();
     clear();
     assert_eq!(
         try_inject(Fault::Multiple {
@@ -176,7 +176,7 @@ fn test_multiple_failures() {
 
 #[test]
 fn test_duplicate_fail_point_error() {
-    let _lock = TEST_LOCK.lock().unwrap();
+    let _lock = TEST_LOCK.lock();
     clear();
     let result = try_inject(Fault::Multiple {
         op: Operation::Alloc,
@@ -187,7 +187,7 @@ fn test_duplicate_fail_point_error() {
 
 #[test]
 fn test_clear_returns_exact_counts() {
-    let _lock = TEST_LOCK.lock().unwrap();
+    let _lock = TEST_LOCK.lock();
     clear();
 
     assert_eq!(
@@ -216,7 +216,7 @@ fn test_clear_returns_exact_counts() {
 
 #[test]
 fn test_multiple_operations_independently() {
-    let _lock = TEST_LOCK.lock().unwrap();
+    let _lock = TEST_LOCK.lock();
     clear();
 
     assert_eq!(inject(Fault::Mmap { fail_after: 0 }), Ok(()));

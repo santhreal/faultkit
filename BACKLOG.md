@@ -1,0 +1,4 @@
+# BACKLOG - faultkit
+
+## OPEN
+DONE 2026-07-14 src/config.rs:160 | test-isolation | high | Fault state (`STATE: SpinLock<GlobalState>` + `ENABLED`) was process-global, so a fault injected in one test leaked to other threads; consumers like phptaint saw spurious failures under parallel test runs. | FIXED: added thread-local `THREAD_STATE` consulted first by `should_fail_*()`, with `inject`/`inject_scoped` defaulting to thread scope and `inject_global`/`inject_scoped_global` explicitly using the process-global state. Proving tests `test_thread_local_isolation` (concurrent) and `test_storage_engine_resilience_loop` (integration) pass. `cargo +1.92.0 test` CARGO_EXIT=0. | status=done

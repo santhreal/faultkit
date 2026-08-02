@@ -1,4 +1,4 @@
-# faultkit — Technical Spec
+# faultkit: Technical Spec
 
 ## Overview
 

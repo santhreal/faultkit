@@ -10,7 +10,7 @@ proptest! {
     #[test]
     fn test_monotonicity_of_calls(fail_after in 100u64..500u64) {
 
-        let _lock = TEST_LOCK.lock().unwrap();
+        let _lock = TEST_LOCK.lock();
         clear();
         assert_eq!(try_inject(Fault::Mmap { fail_after }), Ok(()));
 
@@ -24,7 +24,7 @@ proptest! {
     #[test]
     fn test_persistent_stays_failed(fail_after in 50u64..200u64) {
 
-        let _lock = TEST_LOCK.lock().unwrap();
+        let _lock = TEST_LOCK.lock();
         clear();
         assert_eq!(try_inject(Fault::Persistent {
             op: Operation::Mmap,

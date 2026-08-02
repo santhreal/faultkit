@@ -2,7 +2,7 @@ use faultkit::{
     clear, inject, inject_scoped, is_enabled, should_fail_alloc, should_fail_mmap,
     should_fail_read, should_fail_send, should_fail_write, Fault, InjectionError, Operation,
 };
-use std::sync::Mutex;
+use parking_lot::Mutex;
 use std::thread;
 
 // Force serial execution of all adversarial tests since `faultkit` uses global state.
@@ -11,7 +11,7 @@ static TEST_LOCK: Mutex<()> = Mutex::new(());
 #[test]
 #[allow(clippy::unwrap_used, clippy::used_underscore_binding)]
 fn test_01_multiple_empty() {
-    let _g = TEST_LOCK.lock().unwrap();
+    let _g = TEST_LOCK.lock();
     clear();
     assert!(inject(Fault::Multiple {
         op: Operation::Mmap,
@@ -27,7 +27,7 @@ fn test_01_multiple_empty() {
 #[test]
 #[allow(clippy::unwrap_used, clippy::used_underscore_binding)]
 fn test_02_try_inject_sets_enabled_on_error() {
-    let _g = TEST_LOCK.lock().unwrap();
+    let _g = TEST_LOCK.lock();
     clear();
     let err = inject(Fault::Multiple {
         op: Operation::Mmap,
@@ -40,7 +40,7 @@ fn test_02_try_inject_sets_enabled_on_error() {
 #[test]
 #[allow(clippy::unwrap_used, clippy::used_underscore_binding)]
 fn test_03_multiple_partial_injection_on_error() {
-    let _g = TEST_LOCK.lock().unwrap();
+    let _g = TEST_LOCK.lock();
     clear();
     let _ = inject(Fault::Multiple {
         op: Operation::Mmap,
@@ -58,7 +58,7 @@ fn test_03_multiple_partial_injection_on_error() {
 #[test]
 #[allow(clippy::unwrap_used, clippy::used_underscore_binding)]
 fn test_04_inject_scoped_clears_global_state() {
-    let _g = TEST_LOCK.lock().unwrap();
+    let _g = TEST_LOCK.lock();
     clear();
     inject(Fault::Mmap { fail_after: 5 }).unwrap();
     {
@@ -73,7 +73,7 @@ fn test_04_inject_scoped_clears_global_state() {
 #[test]
 #[allow(clippy::unwrap_used, clippy::used_underscore_binding)]
 fn test_05_persist_overwrites_silently() {
-    let _g = TEST_LOCK.lock().unwrap();
+    let _g = TEST_LOCK.lock();
     clear();
     inject(Fault::Persistent {
         op: Operation::Mmap,
@@ -91,7 +91,7 @@ fn test_05_persist_overwrites_silently() {
 #[test]
 #[allow(clippy::unwrap_used, clippy::used_underscore_binding)]
 fn test_06_probability_overwrites_silently() {
-    let _g = TEST_LOCK.lock().unwrap();
+    let _g = TEST_LOCK.lock();
     clear();
     inject(Fault::Probabilistic {
         op: Operation::Read,
@@ -108,7 +108,7 @@ fn test_06_probability_overwrites_silently() {
 #[test]
 #[allow(clippy::unwrap_used, clippy::used_underscore_binding)]
 fn test_07_clear_resets_call_counts() {
-    let _g = TEST_LOCK.lock().unwrap();
+    let _g = TEST_LOCK.lock();
     clear();
     inject(Fault::Mmap { fail_after: 2 }).unwrap();
     should_fail_mmap(); // 0
@@ -121,7 +121,7 @@ fn test_07_clear_resets_call_counts() {
 #[test]
 #[allow(clippy::unwrap_used, clippy::used_underscore_binding)]
 fn test_08_probability_nan() {
-    let _g = TEST_LOCK.lock().unwrap();
+    let _g = TEST_LOCK.lock();
     clear();
     inject(Fault::Probabilistic {
         op: Operation::Write,
@@ -134,7 +134,7 @@ fn test_08_probability_nan() {
 #[test]
 #[allow(clippy::unwrap_used, clippy::used_underscore_binding)]
 fn test_09_probability_infinity() {
-    let _g = TEST_LOCK.lock().unwrap();
+    let _g = TEST_LOCK.lock();
     clear();
     inject(Fault::Probabilistic {
         op: Operation::Alloc,
@@ -147,7 +147,7 @@ fn test_09_probability_infinity() {
 #[test]
 #[allow(clippy::unwrap_used, clippy::used_underscore_binding)]
 fn test_10_probability_negative() {
-    let _g = TEST_LOCK.lock().unwrap();
+    let _g = TEST_LOCK.lock();
     clear();
     inject(Fault::Probabilistic {
         op: Operation::Send,
@@ -163,7 +163,7 @@ fn test_10_probability_negative() {
 #[test]
 #[allow(clippy::unwrap_used, clippy::used_underscore_binding)]
 fn test_11_probability_out_of_bounds() {
-    let _g = TEST_LOCK.lock().unwrap();
+    let _g = TEST_LOCK.lock();
     clear();
     inject(Fault::Probabilistic {
         op: Operation::Mmap,
@@ -176,7 +176,7 @@ fn test_11_probability_out_of_bounds() {
 #[test]
 #[allow(clippy::unwrap_used, clippy::used_underscore_binding)]
 fn test_12_probability_leaks_fail_points() {
-    let _g = TEST_LOCK.lock().unwrap();
+    let _g = TEST_LOCK.lock();
     clear();
     inject(Fault::Mmap { fail_after: 0 }).unwrap();
     inject(Fault::Probabilistic {
@@ -195,7 +195,7 @@ fn test_12_probability_leaks_fail_points() {
 #[test]
 #[allow(clippy::unwrap_used, clippy::used_underscore_binding)]
 fn test_13_persist_leaks_fail_points() {
-    let _g = TEST_LOCK.lock().unwrap();
+    let _g = TEST_LOCK.lock();
     clear();
     inject(Fault::Read { fail_after: 0 }).unwrap();
     inject(Fault::Persistent {
@@ -214,7 +214,7 @@ fn test_13_persist_leaks_fail_points() {
 #[test]
 #[allow(clippy::unwrap_used, clippy::used_underscore_binding)]
 fn test_14_should_fail_mutates_state_when_enabled_but_not_injected() {
-    let _g = TEST_LOCK.lock().unwrap();
+    let _g = TEST_LOCK.lock();
     clear();
     inject(Fault::Mmap { fail_after: 10 }).unwrap();
     // Mutates internal call counter for Read, even though Read wasn't injected
@@ -224,7 +224,7 @@ fn test_14_should_fail_mutates_state_when_enabled_but_not_injected() {
 #[test]
 #[allow(clippy::unwrap_used, clippy::used_underscore_binding)]
 fn test_15_cleared_faults_accuracy_missing_prob_persist() {
-    let _g = TEST_LOCK.lock().unwrap();
+    let _g = TEST_LOCK.lock();
     clear();
     inject(Fault::Persistent {
         op: Operation::Mmap,
@@ -241,7 +241,7 @@ fn test_15_cleared_faults_accuracy_missing_prob_persist() {
 #[test]
 #[allow(clippy::unwrap_used, clippy::used_underscore_binding)]
 fn test_16_inject_does_not_clear_previous() {
-    let _g = TEST_LOCK.lock().unwrap();
+    let _g = TEST_LOCK.lock();
     clear();
     inject(Fault::Mmap { fail_after: 0 }).unwrap();
     inject(Fault::Mmap { fail_after: 1 }).unwrap();
@@ -252,7 +252,7 @@ fn test_16_inject_does_not_clear_previous() {
 #[test]
 #[allow(clippy::unwrap_used, clippy::used_underscore_binding)]
 fn test_17_probabilistic_zero() {
-    let _g = TEST_LOCK.lock().unwrap();
+    let _g = TEST_LOCK.lock();
     clear();
     inject(Fault::Probabilistic {
         op: Operation::Mmap,
@@ -265,7 +265,7 @@ fn test_17_probabilistic_zero() {
 #[test]
 #[allow(clippy::unwrap_used, clippy::used_underscore_binding)]
 fn test_18_large_fail_points_resource_exhaustion_on_inject() {
-    let _g = TEST_LOCK.lock().unwrap();
+    let _g = TEST_LOCK.lock();
     clear();
     let points: Vec<u64> = (0..10_000).collect();
     // Demonstrates O(N^2) complexity in inject due to contains loop
@@ -279,7 +279,7 @@ fn test_18_large_fail_points_resource_exhaustion_on_inject() {
 #[test]
 #[allow(clippy::unwrap_used, clippy::used_underscore_binding)]
 fn test_19_fail_after_u64_max() {
-    let _g = TEST_LOCK.lock().unwrap();
+    let _g = TEST_LOCK.lock();
     clear();
     inject(Fault::Mmap {
         fail_after: u64::MAX,
@@ -291,7 +291,7 @@ fn test_19_fail_after_u64_max() {
 #[test]
 #[allow(clippy::unwrap_used, clippy::used_underscore_binding)]
 fn test_20_duplicate_persistent_fails() {
-    let _g = TEST_LOCK.lock().unwrap();
+    let _g = TEST_LOCK.lock();
     clear();
     inject(Fault::Persistent {
         op: Operation::Read,
@@ -308,7 +308,7 @@ fn test_20_duplicate_persistent_fails() {
 #[test]
 #[allow(clippy::unwrap_used, clippy::used_underscore_binding)]
 fn test_21_multiple_fail_points_order() {
-    let _g = TEST_LOCK.lock().unwrap();
+    let _g = TEST_LOCK.lock();
     clear();
     inject(Fault::Multiple {
         op: Operation::Alloc,
@@ -322,7 +322,7 @@ fn test_21_multiple_fail_points_order() {
 #[test]
 #[allow(clippy::unwrap_used, clippy::used_underscore_binding)]
 fn test_22_concurrent_access_from_8_threads() {
-    let _g = TEST_LOCK.lock().unwrap();
+    let _g = TEST_LOCK.lock();
     clear();
     inject(Fault::Persistent {
         op: Operation::Send,
@@ -345,7 +345,7 @@ fn test_22_concurrent_access_from_8_threads() {
 #[test]
 #[allow(clippy::unwrap_used, clippy::used_underscore_binding)]
 fn test_23_inject_scoped_multiple_times_clears_each_other() {
-    let _g = TEST_LOCK.lock().unwrap();
+    let _g = TEST_LOCK.lock();
     clear();
     let _g1 = inject_scoped(Fault::Mmap { fail_after: 0 }).unwrap();
     let _g2 = inject_scoped(Fault::Read { fail_after: 0 }).unwrap();
@@ -356,7 +356,7 @@ fn test_23_inject_scoped_multiple_times_clears_each_other() {
 #[test]
 #[allow(clippy::unwrap_used, clippy::used_underscore_binding)]
 fn test_24_persist_after_zero() {
-    let _g = TEST_LOCK.lock().unwrap();
+    let _g = TEST_LOCK.lock();
     clear();
     inject(Fault::Persistent {
         op: Operation::Alloc,
@@ -370,7 +370,7 @@ fn test_24_persist_after_zero() {
 #[test]
 #[allow(clippy::unwrap_used, clippy::used_underscore_binding)]
 fn test_25_probability_one() {
-    let _g = TEST_LOCK.lock().unwrap();
+    let _g = TEST_LOCK.lock();
     clear();
     inject(Fault::Probabilistic {
         op: Operation::Write,
@@ -383,7 +383,7 @@ fn test_25_probability_one() {
 #[test]
 #[allow(clippy::unwrap_used, clippy::used_underscore_binding)]
 fn test_26_multiple_points_same_value_different_operations() {
-    let _g = TEST_LOCK.lock().unwrap();
+    let _g = TEST_LOCK.lock();
     clear();
     inject(Fault::Mmap { fail_after: 0 }).unwrap();
     inject(Fault::Read { fail_after: 0 }).unwrap();
@@ -394,7 +394,7 @@ fn test_26_multiple_points_same_value_different_operations() {
 #[test]
 #[allow(clippy::unwrap_used, clippy::used_underscore_binding)]
 fn test_27_check_increments_calls_even_when_probability_hits() {
-    let _g = TEST_LOCK.lock().unwrap();
+    let _g = TEST_LOCK.lock();
     clear();
     inject(Fault::Probabilistic {
         op: Operation::Mmap,
@@ -407,7 +407,7 @@ fn test_27_check_increments_calls_even_when_probability_hits() {
 #[test]
 #[allow(clippy::unwrap_used, clippy::used_underscore_binding)]
 fn test_28_check_increments_calls_even_when_persist_hits() {
-    let _g = TEST_LOCK.lock().unwrap();
+    let _g = TEST_LOCK.lock();
     clear();
     inject(Fault::Persistent {
         op: Operation::Mmap,
@@ -420,7 +420,7 @@ fn test_28_check_increments_calls_even_when_persist_hits() {
 #[test]
 #[allow(clippy::unwrap_used, clippy::used_underscore_binding)]
 fn test_29_should_fail_alloc_without_enabled() {
-    let _g = TEST_LOCK.lock().unwrap();
+    let _g = TEST_LOCK.lock();
     clear();
     assert!(!should_fail_alloc());
 }
@@ -428,7 +428,7 @@ fn test_29_should_fail_alloc_without_enabled() {
 #[test]
 #[allow(clippy::unwrap_used, clippy::used_underscore_binding)]
 fn test_30_inject_duplicate_different_types() {
-    let _g = TEST_LOCK.lock().unwrap();
+    let _g = TEST_LOCK.lock();
     clear();
     inject(Fault::Mmap { fail_after: 0 }).unwrap();
     let err = inject(Fault::Multiple {
@@ -441,7 +441,7 @@ fn test_30_inject_duplicate_different_types() {
 #[test]
 #[allow(clippy::unwrap_used, clippy::used_underscore_binding)]
 fn test_31_multiple_partial_injection_across_calls() {
-    let _g = TEST_LOCK.lock().unwrap();
+    let _g = TEST_LOCK.lock();
     clear();
     inject(Fault::Multiple {
         op: Operation::Mmap,
@@ -463,7 +463,7 @@ fn test_31_multiple_partial_injection_across_calls() {
 #[test]
 #[allow(clippy::unwrap_used, clippy::used_underscore_binding)]
 fn test_32_concurrent_inject_and_check() {
-    let _g = TEST_LOCK.lock().unwrap();
+    let _g = TEST_LOCK.lock();
     clear();
     let h1 = thread::spawn(|| {
         for i in 0..100 {
@@ -482,7 +482,7 @@ fn test_32_concurrent_inject_and_check() {
 #[test]
 #[allow(clippy::unwrap_used, clippy::used_underscore_binding)]
 fn test_33_max_f64_probability() {
-    let _g = TEST_LOCK.lock().unwrap();
+    let _g = TEST_LOCK.lock();
     clear();
     inject(Fault::Probabilistic {
         op: Operation::Mmap,

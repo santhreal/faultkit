@@ -2,7 +2,7 @@ use faultkit::{
     clear, inject, inject_scoped, is_enabled, should_fail_alloc, should_fail_mmap,
     should_fail_read, should_fail_send, should_fail_write, Fault, InjectionError, Operation,
 };
-use std::sync::Mutex;
+use parking_lot::Mutex;
 use std::thread;
 
 // Force serial execution of all adversarial tests since `faultkit` uses global state.
@@ -11,69 +11,88 @@ static TEST_LOCK: Mutex<()> = Mutex::new(());
 #[test]
 #[allow(clippy::unwrap_used, clippy::used_underscore_binding)]
 fn test_01_multiple_empty() {
-    let _g = TEST_LOCK.lock().unwrap();
+    let _g = TEST_LOCK.lock();
     clear();
     assert!(inject(Fault::Multiple {
         op: Operation::Mmap,
         fail_points: vec![]
     })
     .is_ok());
+    // FIXED (was: asserted the bug that ENABLED became true). An empty Multiple
+    // configures no fault, so nothing is enabled.
     assert!(
-        is_enabled(),
-        "Bug: ENABLED is true even without fail points"
+        !is_enabled(),
+        "an empty Multiple injects no fault, so injection must stay disabled"
     );
 }
 
 #[test]
 #[allow(clippy::unwrap_used, clippy::used_underscore_binding)]
 fn test_02_try_inject_sets_enabled_on_error() {
-    let _g = TEST_LOCK.lock().unwrap();
+    let _g = TEST_LOCK.lock();
     clear();
     let err = inject(Fault::Multiple {
         op: Operation::Mmap,
         fail_points: vec![0, 0],
     });
     assert_eq!(err, Err(InjectionError::DuplicateFailPoint));
-    assert!(is_enabled(), "Bug: remained enabled despite error");
+    // FIXED (was: asserted the bug that a failed inject left ENABLED on). A
+    // failed injection with no prior fault must not enable fault injection.
+    assert!(
+        !is_enabled(),
+        "a failed injection must not leave fault injection enabled"
+    );
 }
 
 #[test]
 #[allow(clippy::unwrap_used, clippy::used_underscore_binding)]
 fn test_03_multiple_partial_injection_on_error() {
-    let _g = TEST_LOCK.lock().unwrap();
+    let _g = TEST_LOCK.lock();
     clear();
-    let _ = inject(Fault::Multiple {
+    let err = inject(Fault::Multiple {
         op: Operation::Mmap,
         fail_points: vec![10, 10],
     });
-    for _ in 0..10 {
-        assert!(!should_fail_mmap());
+    assert_eq!(err, Err(InjectionError::DuplicateFailPoint));
+    // FIXED (was: asserted the bug that the first 10 was partially injected
+    // before the duplicate error). Injection is now atomic: the whole [10, 10]
+    // batch is rejected, so NOTHING is injected and no call ever fails.
+    assert!(!is_enabled(), "a rejected batch must leave injection disabled");
+    for _ in 0..12 {
+        assert!(
+            !should_fail_mmap(),
+            "a duplicate Multiple batch must inject nothing (atomic)"
+        );
     }
-    assert!(
-        should_fail_mmap(),
-        "Bug: The first 10 was partially injected before error"
-    );
 }
 
 #[test]
 #[allow(clippy::unwrap_used, clippy::used_underscore_binding)]
 fn test_04_inject_scoped_clears_global_state() {
-    let _g = TEST_LOCK.lock().unwrap();
+    let _g = TEST_LOCK.lock();
     clear();
     inject(Fault::Mmap { fail_after: 5 }).unwrap();
     {
         let _guard = inject_scoped(Fault::Read { fail_after: 2 }).unwrap();
     }
+    // FIXED (was: asserted the bug that the scoped Read guard's drop wiped the
+    // outer Mmap fault). The guard now restores ONLY its own operation (Read),
+    // so the outer Mmap fault survives and injection stays enabled.
     assert!(
-        !is_enabled(),
-        "Bug: Global state was cleared by scoped guard"
+        is_enabled(),
+        "the outer Mmap fault must survive the inner scoped Read guard drop"
     );
+    // And the Mmap fault still fires at its configured call index (5).
+    for _ in 0..5 {
+        assert!(!should_fail_mmap());
+    }
+    assert!(should_fail_mmap(), "outer Mmap fail_after:5 must still be armed");
 }
 
 #[test]
 #[allow(clippy::unwrap_used, clippy::used_underscore_binding)]
 fn test_05_persist_overwrites_silently() {
-    let _g = TEST_LOCK.lock().unwrap();
+    let _g = TEST_LOCK.lock();
     clear();
     inject(Fault::Persistent {
         op: Operation::Mmap,
@@ -91,7 +110,7 @@ fn test_05_persist_overwrites_silently() {
 #[test]
 #[allow(clippy::unwrap_used, clippy::used_underscore_binding)]
 fn test_06_probability_overwrites_silently() {
-    let _g = TEST_LOCK.lock().unwrap();
+    let _g = TEST_LOCK.lock();
     clear();
     inject(Fault::Probabilistic {
         op: Operation::Read,
@@ -108,7 +127,7 @@ fn test_06_probability_overwrites_silently() {
 #[test]
 #[allow(clippy::unwrap_used, clippy::used_underscore_binding)]
 fn test_07_clear_resets_call_counts() {
-    let _g = TEST_LOCK.lock().unwrap();
+    let _g = TEST_LOCK.lock();
     clear();
     inject(Fault::Mmap { fail_after: 2 }).unwrap();
     should_fail_mmap(); // 0
@@ -121,7 +140,7 @@ fn test_07_clear_resets_call_counts() {
 #[test]
 #[allow(clippy::unwrap_used, clippy::used_underscore_binding)]
 fn test_08_probability_nan() {
-    let _g = TEST_LOCK.lock().unwrap();
+    let _g = TEST_LOCK.lock();
     clear();
     inject(Fault::Probabilistic {
         op: Operation::Write,
@@ -134,7 +153,7 @@ fn test_08_probability_nan() {
 #[test]
 #[allow(clippy::unwrap_used, clippy::used_underscore_binding)]
 fn test_09_probability_infinity() {
-    let _g = TEST_LOCK.lock().unwrap();
+    let _g = TEST_LOCK.lock();
     clear();
     inject(Fault::Probabilistic {
         op: Operation::Alloc,
@@ -147,7 +166,7 @@ fn test_09_probability_infinity() {
 #[test]
 #[allow(clippy::unwrap_used, clippy::used_underscore_binding)]
 fn test_10_probability_negative() {
-    let _g = TEST_LOCK.lock().unwrap();
+    let _g = TEST_LOCK.lock();
     clear();
     inject(Fault::Probabilistic {
         op: Operation::Send,
@@ -163,7 +182,7 @@ fn test_10_probability_negative() {
 #[test]
 #[allow(clippy::unwrap_used, clippy::used_underscore_binding)]
 fn test_11_probability_out_of_bounds() {
-    let _g = TEST_LOCK.lock().unwrap();
+    let _g = TEST_LOCK.lock();
     clear();
     inject(Fault::Probabilistic {
         op: Operation::Mmap,
@@ -176,7 +195,7 @@ fn test_11_probability_out_of_bounds() {
 #[test]
 #[allow(clippy::unwrap_used, clippy::used_underscore_binding)]
 fn test_12_probability_leaks_fail_points() {
-    let _g = TEST_LOCK.lock().unwrap();
+    let _g = TEST_LOCK.lock();
     clear();
     inject(Fault::Mmap { fail_after: 0 }).unwrap();
     inject(Fault::Probabilistic {
@@ -186,16 +205,19 @@ fn test_12_probability_leaks_fail_points() {
     .unwrap();
     assert!(should_fail_mmap());
     let cleared = clear();
+    // FIXED (was: asserted the bug that the discrete point leaked when
+    // probability also fired). check() now always consumes the matching discrete
+    // fail point, so nothing is left to clear.
     assert_eq!(
-        cleared.mmap, 1,
-        "Bug: probability triggered true, bypassing point removal, leaking it"
+        cleared.mmap, 0,
+        "the discrete fail point must be consumed even when probability also fired (no leak)"
     );
 }
 
 #[test]
 #[allow(clippy::unwrap_used, clippy::used_underscore_binding)]
 fn test_13_persist_leaks_fail_points() {
-    let _g = TEST_LOCK.lock().unwrap();
+    let _g = TEST_LOCK.lock();
     clear();
     inject(Fault::Read { fail_after: 0 }).unwrap();
     inject(Fault::Persistent {
@@ -205,26 +227,37 @@ fn test_13_persist_leaks_fail_points() {
     .unwrap();
     assert!(should_fail_read());
     let cleared = clear();
+    // FIXED (was: asserted the bug that the discrete point leaked when the
+    // persistent trigger fired). The discrete point is now consumed regardless.
     assert_eq!(
-        cleared.read, 1,
-        "Bug: persist triggered true, leaking fail point"
+        cleared.read, 0,
+        "the discrete fail point must be consumed even when a persistent fault also fired"
     );
 }
 
 #[test]
 #[allow(clippy::unwrap_used, clippy::used_underscore_binding)]
-fn test_14_should_fail_mutates_state_when_enabled_but_not_injected() {
-    let _g = TEST_LOCK.lock().unwrap();
+fn test_14_should_fail_does_not_mutate_state_when_enabled_but_not_injected() {
+    let _g = TEST_LOCK.lock();
     clear();
     inject(Fault::Mmap { fail_after: 10 }).unwrap();
-    // Mutates internal call counter for Read, even though Read wasn't injected
-    should_fail_read();
+    // FIXED (was: the Read call counter advanced even though Read had no fault,
+    // just because ENABLED was globally true for Mmap). check() now returns
+    // early for an inactive op WITHOUT incrementing its counter. Prove the Read
+    // counter stayed at 0: a Read call here must not consume index 0, so a
+    // freshly injected Read{fail_after:0} still fires on the very next call.
+    assert!(!should_fail_read());
+    inject(Fault::Read { fail_after: 0 }).unwrap();
+    assert!(
+        should_fail_read(),
+        "the Read call counter must not have advanced while Read had no fault"
+    );
 }
 
 #[test]
 #[allow(clippy::unwrap_used, clippy::used_underscore_binding)]
-fn test_15_cleared_faults_accuracy_missing_prob_persist() {
-    let _g = TEST_LOCK.lock().unwrap();
+fn test_15_cleared_faults_tracks_prob_persist() {
+    let _g = TEST_LOCK.lock();
     clear();
     inject(Fault::Persistent {
         op: Operation::Mmap,
@@ -232,16 +265,21 @@ fn test_15_cleared_faults_accuracy_missing_prob_persist() {
     })
     .unwrap();
     let cleared = clear();
+    // A persistent fault adds no discrete points...
+    assert_eq!(cleared.mmap, 0);
+    // ...but FIXED: ClearedFaults now reports it via the `persistent` field
+    // (was: persistent/probabilistic faults were invisible in the summary).
     assert_eq!(
-        cleared.mmap, 0,
-        "Bug: ClearedFaults only tracks discrete fail points, missing persist"
+        cleared.persistent, 1,
+        "ClearedFaults must report the cleared persistent fault"
     );
+    assert_eq!(cleared.probabilistic, 0);
 }
 
 #[test]
 #[allow(clippy::unwrap_used, clippy::used_underscore_binding)]
 fn test_16_inject_does_not_clear_previous() {
-    let _g = TEST_LOCK.lock().unwrap();
+    let _g = TEST_LOCK.lock();
     clear();
     inject(Fault::Mmap { fail_after: 0 }).unwrap();
     inject(Fault::Mmap { fail_after: 1 }).unwrap();
@@ -252,7 +290,7 @@ fn test_16_inject_does_not_clear_previous() {
 #[test]
 #[allow(clippy::unwrap_used, clippy::used_underscore_binding)]
 fn test_17_probabilistic_zero() {
-    let _g = TEST_LOCK.lock().unwrap();
+    let _g = TEST_LOCK.lock();
     clear();
     inject(Fault::Probabilistic {
         op: Operation::Mmap,
@@ -265,21 +303,23 @@ fn test_17_probabilistic_zero() {
 #[test]
 #[allow(clippy::unwrap_used, clippy::used_underscore_binding)]
 fn test_18_large_fail_points_resource_exhaustion_on_inject() {
-    let _g = TEST_LOCK.lock().unwrap();
+    let _g = TEST_LOCK.lock();
     clear();
     let points: Vec<u64> = (0..10_000).collect();
-    // Demonstrates O(N^2) complexity in inject due to contains loop
+    // Injecting 10k distinct fail points is now O(N log N) (BTreeSet dup check),
+    // not the old O(N^2) `contains()` scan. Just assert it succeeds cheaply.
     inject(Fault::Multiple {
         op: Operation::Mmap,
         fail_points: points,
     })
     .unwrap();
+    assert!(is_enabled());
 }
 
 #[test]
 #[allow(clippy::unwrap_used, clippy::used_underscore_binding)]
 fn test_19_fail_after_u64_max() {
-    let _g = TEST_LOCK.lock().unwrap();
+    let _g = TEST_LOCK.lock();
     clear();
     inject(Fault::Mmap {
         fail_after: u64::MAX,
@@ -291,7 +331,7 @@ fn test_19_fail_after_u64_max() {
 #[test]
 #[allow(clippy::unwrap_used, clippy::used_underscore_binding)]
 fn test_20_duplicate_persistent_fails() {
-    let _g = TEST_LOCK.lock().unwrap();
+    let _g = TEST_LOCK.lock();
     clear();
     inject(Fault::Persistent {
         op: Operation::Read,
@@ -308,7 +348,7 @@ fn test_20_duplicate_persistent_fails() {
 #[test]
 #[allow(clippy::unwrap_used, clippy::used_underscore_binding)]
 fn test_21_multiple_fail_points_order() {
-    let _g = TEST_LOCK.lock().unwrap();
+    let _g = TEST_LOCK.lock();
     clear();
     inject(Fault::Multiple {
         op: Operation::Alloc,
@@ -322,7 +362,7 @@ fn test_21_multiple_fail_points_order() {
 #[test]
 #[allow(clippy::unwrap_used, clippy::used_underscore_binding)]
 fn test_22_concurrent_access_from_8_threads() {
-    let _g = TEST_LOCK.lock().unwrap();
+    let _g = TEST_LOCK.lock();
     clear();
     inject(Fault::Persistent {
         op: Operation::Send,
@@ -345,18 +385,23 @@ fn test_22_concurrent_access_from_8_threads() {
 #[test]
 #[allow(clippy::unwrap_used, clippy::used_underscore_binding)]
 fn test_23_inject_scoped_multiple_times_clears_each_other() {
-    let _g = TEST_LOCK.lock().unwrap();
+    let _g = TEST_LOCK.lock();
     clear();
     let _g1 = inject_scoped(Fault::Mmap { fail_after: 0 }).unwrap();
     let _g2 = inject_scoped(Fault::Read { fail_after: 0 }).unwrap();
     drop(_g2);
-    assert!(!should_fail_mmap(), "Bug: _g2 drop cleared _g1");
+    // FIXED (was: asserted the bug that dropping _g2 (Read) cleared _g1 (Mmap)).
+    // Each guard restores only its own operation, so _g1's Mmap fault is intact.
+    assert!(
+        should_fail_mmap(),
+        "dropping the inner Read guard must not clear the outer Mmap guard's fault"
+    );
 }
 
 #[test]
 #[allow(clippy::unwrap_used, clippy::used_underscore_binding)]
 fn test_24_persist_after_zero() {
-    let _g = TEST_LOCK.lock().unwrap();
+    let _g = TEST_LOCK.lock();
     clear();
     inject(Fault::Persistent {
         op: Operation::Alloc,
@@ -370,7 +415,7 @@ fn test_24_persist_after_zero() {
 #[test]
 #[allow(clippy::unwrap_used, clippy::used_underscore_binding)]
 fn test_25_probability_one() {
-    let _g = TEST_LOCK.lock().unwrap();
+    let _g = TEST_LOCK.lock();
     clear();
     inject(Fault::Probabilistic {
         op: Operation::Write,
@@ -383,7 +428,7 @@ fn test_25_probability_one() {
 #[test]
 #[allow(clippy::unwrap_used, clippy::used_underscore_binding)]
 fn test_26_multiple_points_same_value_different_operations() {
-    let _g = TEST_LOCK.lock().unwrap();
+    let _g = TEST_LOCK.lock();
     clear();
     inject(Fault::Mmap { fail_after: 0 }).unwrap();
     inject(Fault::Read { fail_after: 0 }).unwrap();
@@ -394,7 +439,7 @@ fn test_26_multiple_points_same_value_different_operations() {
 #[test]
 #[allow(clippy::unwrap_used, clippy::used_underscore_binding)]
 fn test_27_check_increments_calls_even_when_probability_hits() {
-    let _g = TEST_LOCK.lock().unwrap();
+    let _g = TEST_LOCK.lock();
     clear();
     inject(Fault::Probabilistic {
         op: Operation::Mmap,
@@ -407,7 +452,7 @@ fn test_27_check_increments_calls_even_when_probability_hits() {
 #[test]
 #[allow(clippy::unwrap_used, clippy::used_underscore_binding)]
 fn test_28_check_increments_calls_even_when_persist_hits() {
-    let _g = TEST_LOCK.lock().unwrap();
+    let _g = TEST_LOCK.lock();
     clear();
     inject(Fault::Persistent {
         op: Operation::Mmap,
@@ -420,7 +465,7 @@ fn test_28_check_increments_calls_even_when_persist_hits() {
 #[test]
 #[allow(clippy::unwrap_used, clippy::used_underscore_binding)]
 fn test_29_should_fail_alloc_without_enabled() {
-    let _g = TEST_LOCK.lock().unwrap();
+    let _g = TEST_LOCK.lock();
     clear();
     assert!(!should_fail_alloc());
 }
@@ -428,7 +473,7 @@ fn test_29_should_fail_alloc_without_enabled() {
 #[test]
 #[allow(clippy::unwrap_used, clippy::used_underscore_binding)]
 fn test_30_inject_duplicate_different_types() {
-    let _g = TEST_LOCK.lock().unwrap();
+    let _g = TEST_LOCK.lock();
     clear();
     inject(Fault::Mmap { fail_after: 0 }).unwrap();
     let err = inject(Fault::Multiple {
@@ -441,7 +486,7 @@ fn test_30_inject_duplicate_different_types() {
 #[test]
 #[allow(clippy::unwrap_used, clippy::used_underscore_binding)]
 fn test_31_multiple_partial_injection_across_calls() {
-    let _g = TEST_LOCK.lock().unwrap();
+    let _g = TEST_LOCK.lock();
     clear();
     inject(Fault::Multiple {
         op: Operation::Mmap,
@@ -453,17 +498,22 @@ fn test_31_multiple_partial_injection_across_calls() {
         fail_points: vec![3, 2],
     });
     assert!(err.is_err());
-    // 3 gets partially injected before error on 2!
-    should_fail_mmap(); // 0
-    assert!(should_fail_mmap()); // 1
-    assert!(should_fail_mmap()); // 2
-    assert!(should_fail_mmap(), "Bug: 3 was partially injected!");
+    // FIXED (was: asserted the bug that 3 was partially injected before the
+    // batch hit the duplicate 2). Injection is atomic, so the [3, 2] batch is
+    // rejected whole and only the original [1, 2] remain armed.
+    assert!(!should_fail_mmap(), "call 0: not a fail point"); // 0
+    assert!(should_fail_mmap(), "call 1: original fail point"); // 1
+    assert!(should_fail_mmap(), "call 2: original fail point"); // 2
+    assert!(
+        !should_fail_mmap(),
+        "call 3 must NOT fail: the [3, 2] batch was rejected atomically, so 3 was never injected"
+    ); // 3
 }
 
 #[test]
 #[allow(clippy::unwrap_used, clippy::used_underscore_binding)]
 fn test_32_concurrent_inject_and_check() {
-    let _g = TEST_LOCK.lock().unwrap();
+    let _g = TEST_LOCK.lock();
     clear();
     let h1 = thread::spawn(|| {
         for i in 0..100 {
@@ -482,7 +532,7 @@ fn test_32_concurrent_inject_and_check() {
 #[test]
 #[allow(clippy::unwrap_used, clippy::used_underscore_binding)]
 fn test_33_max_f64_probability() {
-    let _g = TEST_LOCK.lock().unwrap();
+    let _g = TEST_LOCK.lock();
     clear();
     inject(Fault::Probabilistic {
         op: Operation::Mmap,

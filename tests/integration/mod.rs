@@ -30,7 +30,7 @@ impl StorageEngine {
 
 #[test]
 fn test_storage_engine_resilience_loop() {
-    let _lock = crate::common::TEST_LOCK.lock().unwrap();
+    let _lock = crate::common::TEST_LOCK.lock();
 
     clear();
 

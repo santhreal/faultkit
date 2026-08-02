@@ -4,7 +4,7 @@ use faultkit::{
 
 #[test]
 fn test_extreme_large_numbers() {
-    let _lock = crate::common::TEST_LOCK.lock().unwrap();
+    let _lock = crate::common::TEST_LOCK.lock();
 
     clear();
     assert_eq!(
@@ -19,7 +19,7 @@ fn test_extreme_large_numbers() {
 
 #[test]
 fn test_empty_multiple() {
-    let _lock = crate::common::TEST_LOCK.lock().unwrap();
+    let _lock = crate::common::TEST_LOCK.lock();
 
     clear();
     assert_eq!(
@@ -38,7 +38,7 @@ fn test_empty_multiple() {
 
 #[test]
 fn test_duplicate_points_in_multiple() {
-    let _lock = crate::common::TEST_LOCK.lock().unwrap();
+    let _lock = crate::common::TEST_LOCK.lock();
 
     clear();
     let result = try_inject(Fault::Multiple {
@@ -51,7 +51,7 @@ fn test_duplicate_points_in_multiple() {
 
 #[test]
 fn test_invalid_probabilities() {
-    let _lock = crate::common::TEST_LOCK.lock().unwrap();
+    let _lock = crate::common::TEST_LOCK.lock();
 
     clear();
     assert_eq!(
@@ -84,7 +84,7 @@ fn test_invalid_probabilities() {
 
 #[test]
 fn test_integer_overflow_protection() {
-    let _lock = crate::common::TEST_LOCK.lock().unwrap();
+    let _lock = crate::common::TEST_LOCK.lock();
 
     clear();
     // Since we can't easily iterate u64::MAX times, we test by injecting and seeing it doesn't panic

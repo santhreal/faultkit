@@ -1,20 +1,20 @@
 use faultkit::{
-    clear, inject, should_fail_alloc, should_fail_mmap, should_fail_read, should_fail_send,
-    should_fail_write, try_inject, Fault, Operation,
+    clear, inject_global, should_fail_alloc, should_fail_mmap, should_fail_read,
+    should_fail_send, should_fail_write, try_inject_global, Fault, Operation,
 };
 use std::sync::{Arc, Barrier};
 use std::thread;
 
 #[test]
 fn test_concurrent_access() {
-    let _lock = crate::common::TEST_LOCK.lock().unwrap();
+    let _lock = crate::common::TEST_LOCK.lock();
 
     clear();
     let num_threads = 50;
     let barrier = Arc::new(Barrier::new(num_threads + 1));
 
     assert_eq!(
-        try_inject(Fault::Probabilistic {
+        try_inject_global(Fault::Probabilistic {
             op: Operation::Mmap,
             probability: 0.5,
         }),
@@ -53,42 +53,42 @@ fn test_concurrent_access() {
 
 #[test]
 fn test_concurrent_multiple_operations() {
-    let _lock = crate::common::TEST_LOCK.lock().unwrap();
+    let _lock = crate::common::TEST_LOCK.lock();
 
     clear();
     let num_threads = 50;
     let barrier = Arc::new(Barrier::new(num_threads + 1));
 
     assert_eq!(
-        inject(Fault::Probabilistic {
+        inject_global(Fault::Probabilistic {
             op: Operation::Mmap,
             probability: 0.5
         }),
         Ok(())
     );
     assert_eq!(
-        inject(Fault::Probabilistic {
+        inject_global(Fault::Probabilistic {
             op: Operation::Read,
             probability: 0.5
         }),
         Ok(())
     );
     assert_eq!(
-        inject(Fault::Probabilistic {
+        inject_global(Fault::Probabilistic {
             op: Operation::Write,
             probability: 0.5
         }),
         Ok(())
     );
     assert_eq!(
-        inject(Fault::Probabilistic {
+        inject_global(Fault::Probabilistic {
             op: Operation::Alloc,
             probability: 0.5
         }),
         Ok(())
     );
     assert_eq!(
-        inject(Fault::Probabilistic {
+        inject_global(Fault::Probabilistic {
             op: Operation::Send,
             probability: 0.5
         }),
@@ -139,7 +139,7 @@ fn test_concurrent_multiple_operations() {
 
 #[test]
 fn test_concurrent_inject_and_clear() {
-    let _lock = crate::common::TEST_LOCK.lock().unwrap();
+    let _lock = crate::common::TEST_LOCK.lock();
 
     clear();
     let num_threads = 20;
@@ -156,7 +156,7 @@ fn test_concurrent_inject_and_clear() {
                 if i % 3 == 0 {
                     // Injecting duplicate points might fail, which is okay, so we ignore it
                     // but we consume the result correctly without ignoring it blindly.
-                    if inject(Fault::Mmap { fail_after: 5 }).is_err() {
+                    if inject_global(Fault::Mmap { fail_after: 5 }).is_err() {
                         failed_ops += 1;
                     }
                 } else if i % 3 == 1 {
@@ -180,4 +180,30 @@ fn test_concurrent_inject_and_clear() {
 
     // As long as there is no panic and we have executed properly, we ensure that at least thread counts exist
     assert!(total_failed >= 0);
+}
+
+#[test]
+fn test_thread_local_isolation() {
+    let _lock = crate::common::TEST_LOCK.lock();
+
+    clear();
+    let barrier = Arc::new(Barrier::new(2));
+    let b = barrier.clone();
+
+    let handle = thread::spawn(move || {
+        assert!(faultkit::inject(Fault::Mmap { fail_after: 0 }).is_ok());
+        assert!(faultkit::should_fail_mmap(), "injected thread should see fault");
+        b.wait(); // signal main thread to check
+        b.wait(); // wait for main thread assertion
+        let _ = clear();
+    });
+
+    barrier.wait(); // wait for injected thread to set up
+    assert!(
+        !faultkit::should_fail_mmap(),
+        "thread-local fault leaked to another thread"
+    );
+    barrier.wait(); // let injected thread clean up
+
+    handle.join().unwrap();
 }

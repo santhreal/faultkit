@@ -1,7 +1,5 @@
 # faultkit
 
-Part of [Santh](https://santh.dev) - open source Rust security and infrastructure tooling. Follow [@SanthProject](https://x.com/SanthProject) on X.
-
 Fault injection for testing error paths. Fail the Nth syscall and verify graceful handling.
 
 ## Usage
@@ -20,7 +18,7 @@ injector.set_fail_at(3);
 
 ## Why
 
-Testing error paths is hard. Most code has `unwrap()` or `?` on operations that "never fail" — until they do in production. faultkit lets you systematically test every error path by failing operations at specific points.
+Testing error paths is hard. Most code has `unwrap()` or `?` on operations that "never fail", until they do in production. faultkit lets you systematically test every error path by failing operations at specific points.
 
 ## License
 

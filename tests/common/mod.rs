@@ -1,1 +1,1 @@
-pub static TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+pub static TEST_LOCK: parking_lot::Mutex<()> = parking_lot::Mutex::new(());
