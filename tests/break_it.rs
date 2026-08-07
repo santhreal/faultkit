@@ -130,10 +130,10 @@ fn test_07_clear_resets_call_counts() {
     let _g = TEST_LOCK.lock();
     clear();
     inject(Fault::Mmap { fail_after: 2 }).unwrap();
-    should_fail_mmap(); // 0
+    let _ = should_fail_mmap(); // 0
     clear();
     inject(Fault::Mmap { fail_after: 1 }).unwrap();
-    should_fail_mmap(); // 0
+    let _ = should_fail_mmap(); // 0
     assert!(should_fail_mmap(), "Count was reset, allowing 1 to be hit");
 }
 
@@ -446,7 +446,7 @@ fn test_27_check_increments_calls_even_when_probability_hits() {
         probability: 1.0,
     })
     .unwrap();
-    should_fail_mmap();
+    let _ = should_fail_mmap();
 }
 
 #[test]
@@ -459,7 +459,7 @@ fn test_28_check_increments_calls_even_when_persist_hits() {
         fail_after: 0,
     })
     .unwrap();
-    should_fail_mmap();
+    let _ = should_fail_mmap();
 }
 
 #[test]
