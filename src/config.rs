@@ -207,6 +207,16 @@ impl GlobalState {
         }
     }
 
+    pub(crate) fn get(&self, op: Operation) -> &OpState {
+        match op {
+            Operation::Mmap => &self.mmap,
+            Operation::Read => &self.read,
+            Operation::Write => &self.write,
+            Operation::Alloc => &self.alloc,
+            Operation::Send => &self.send,
+        }
+    }
+
     /// True when ANY operation has a fault configured. Used to recompute the
     /// global `ENABLED` flag after a selective (single-op) state change, e.g. a
     /// scoped guard restoring only its own operation on drop.
@@ -236,6 +246,11 @@ thread_local! {
 /// True if the current thread has any active thread-local fault.
 pub(crate) fn thread_local_active() -> bool {
     THREAD_STATE.with(|s| s.borrow().any_active())
+}
+
+/// True if the current thread has an active thread-local fault for `op`.
+pub(crate) fn thread_local_op_active(op: Operation) -> bool {
+    THREAD_STATE.with(|s| s.borrow().get(op).is_active())
 }
 
 /// Run `f` with a mutable reference to the current thread's fault state.

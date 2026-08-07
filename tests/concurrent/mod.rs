@@ -207,3 +207,19 @@ fn test_thread_local_isolation() {
 
     handle.join().unwrap();
 }
+#[test]
+fn test_thread_local_cross_op_isolation() {
+    let _lock = crate::common::TEST_LOCK.lock();
+
+    clear();
+    assert!(try_inject_global(Fault::Mmap { fail_after: 0 }).is_ok());
+    assert!(faultkit::inject(Fault::Alloc { fail_after: 0 }).is_ok());
+
+    assert!(should_fail_alloc());
+    assert!(
+        should_fail_mmap(),
+        "global mmap fault should not be shadowed by local alloc fault"
+    );
+
+    clear();
+}

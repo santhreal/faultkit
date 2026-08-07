@@ -1,7 +1,8 @@
 //! Fault injection API functions.
 
 use crate::config::{
-    GlobalState, ENABLED, STATE, thread_local_active, with_thread_local_state_mut,
+    GlobalState, ENABLED, STATE, thread_local_active, thread_local_op_active,
+    with_thread_local_state_mut,
 };
 use crate::types::{ClearedFaults, Fault, InjectionError, Operation};
 use alloc::vec;
@@ -197,7 +198,7 @@ pub fn clear() -> ClearedFaults {
 #[inline]
 #[must_use]
 pub fn should_fail_mmap() -> bool {
-    if thread_local_active() {
+    if thread_local_op_active(Operation::Mmap) {
         return with_thread_local_state_mut(|s| s.get_mut(Operation::Mmap).check());
     }
     if !ENABLED.load(core::sync::atomic::Ordering::Relaxed) {
@@ -222,7 +223,7 @@ pub fn should_fail_mmap() -> bool {
 #[inline]
 #[must_use]
 pub fn should_fail_read() -> bool {
-    if thread_local_active() {
+    if thread_local_op_active(Operation::Read) {
         return with_thread_local_state_mut(|s| s.get_mut(Operation::Read).check());
     }
     if !ENABLED.load(core::sync::atomic::Ordering::Relaxed) {
@@ -247,7 +248,7 @@ pub fn should_fail_read() -> bool {
 #[inline]
 #[must_use]
 pub fn should_fail_write() -> bool {
-    if thread_local_active() {
+    if thread_local_op_active(Operation::Write) {
         return with_thread_local_state_mut(|s| s.get_mut(Operation::Write).check());
     }
     if !ENABLED.load(core::sync::atomic::Ordering::Relaxed) {
@@ -272,7 +273,7 @@ pub fn should_fail_write() -> bool {
 #[inline]
 #[must_use]
 pub fn should_fail_alloc() -> bool {
-    if thread_local_active() {
+    if thread_local_op_active(Operation::Alloc) {
         return with_thread_local_state_mut(|s| s.get_mut(Operation::Alloc).check());
     }
     if !ENABLED.load(core::sync::atomic::Ordering::Relaxed) {
@@ -306,7 +307,7 @@ pub fn should_fail_alloc() -> bool {
 #[inline]
 #[must_use]
 pub fn should_fail_send() -> bool {
-    if thread_local_active() {
+    if thread_local_op_active(Operation::Send) {
         return with_thread_local_state_mut(|s| s.get_mut(Operation::Send).check());
     }
     if !ENABLED.load(core::sync::atomic::Ordering::Relaxed) {

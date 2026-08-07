@@ -1,10 +1,10 @@
 [package]
 name = "faultkit"
-version = "0.2.0"
+version = "0.2.1"
 edition = "2021"
 rust-version = "1.85"
 license = "MIT"
-authors = ["Corum Collective LLC <contact@santh.dev>"]
+authors = ["Santh <64453045+santhreal@users.noreply.github.com>"]
 repository = "https://github.com/santhreal/faultkit"
 homepage = "https://santh.dev"
 documentation = "https://docs.rs/faultkit"
@@ -12,6 +12,8 @@ include = ["src/**", "Cargo.toml", "README.md", "LICENSE", "CHANGELOG.md"]
 description = "Fault injection for testing error paths, fail the Nth syscall and verify graceful handling"
 keywords = ["testing", "fault-injection", "resilience", "chaos-engineering", "error-handling"]
 categories = ["development-tools::testing"]
+[package.metadata.santh]
+status = "beta"
 
 [workspace]
 
