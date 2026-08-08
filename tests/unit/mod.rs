@@ -238,3 +238,69 @@ fn test_multiple_operations_independently() {
     assert!(should_fail_write());
     assert!(!should_fail_write());
 }
+#[test]
+fn test_sequential_fault_injection_relative_offset() {
+    let _lock = TEST_LOCK.lock();
+    clear();
+
+    // First injection: fail on 1st call (after 1 successful call)
+    inject(Fault::Read { fail_after: 1 }).unwrap();
+    assert!(!should_fail_read(), "call 0 should succeed");
+    assert!(should_fail_read(), "call 1 should fail");
+    // State now has calls = 2 and empty fail_points.
+
+    // Second injection mid-execution: fail after 0 successful calls (i.e. next call)
+    inject(Fault::Read { fail_after: 0 }).unwrap();
+    assert!(
+        should_fail_read(),
+        "sequential inject(fail_after: 0) mid-execution must fail the very next call"
+    );
+    assert!(!should_fail_read(), "following call should succeed");
+}
+
+#[test]
+fn test_persistent_fault_relative_offset_mid_execution() {
+    let _lock = TEST_LOCK.lock();
+    clear();
+
+    // Execute 3 unfaulted calls by injecting fail_after: 2
+    inject(Fault::Write { fail_after: 2 }).unwrap();
+    assert!(!should_fail_write()); // call 0
+    assert!(!should_fail_write()); // call 1
+    assert!(should_fail_write()); // call 2 (faulted)
+    // Write call count is now 3.
+
+    // Inject persistent fault to start after 2 more successful calls from now
+    inject(Fault::Persistent {
+        op: Operation::Write,
+        fail_after: 2,
+    })
+    .unwrap();
+
+    // Calls 3 and 4 should succeed (2 calls post-injection)
+    assert!(!should_fail_write(), "call 3 (1st post-inject) should succeed");
+    assert!(!should_fail_write(), "call 4 (2nd post-inject) should succeed");
+
+    // Call 5 and beyond must fail persistently
+    assert!(should_fail_write(), "call 5 (3rd post-inject) must fail");
+    assert!(should_fail_write(), "call 6 (4th post-inject) must fail");
+}
+
+#[test]
+fn test_scoped_global_atomic_snapshot() {
+    use faultkit::inject_scoped_global;
+    let _lock = TEST_LOCK.lock();
+    clear();
+
+    inject(Fault::Mmap { fail_after: 0 }).unwrap();
+    assert!(is_enabled());
+
+    {
+        let _guard = inject_scoped_global(Fault::Read { fail_after: 0 }).unwrap();
+        assert!(should_fail_mmap(), "outer Mmap fault still active");
+        assert!(should_fail_read(), "inner scoped global Read fault active");
+    }
+
+    // Guard dropped: Read fault cleared, outer state restored
+    assert!(!should_fail_read(), "Read fault removed after guard drop");
+}

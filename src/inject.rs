@@ -57,18 +57,30 @@ pub fn try_inject_global(fault: Fault) -> Result<(), InjectionError> {
 }
 
 /// Shared implementation for thread-local and global injection.
-fn inject_into_state(state: &mut GlobalState, fault: Fault) -> Result<(), InjectionError> {
-    let (op, new_points, prob, persist) = match fault {
-        Fault::Mmap { fail_after } => (Operation::Mmap, vec![fail_after], None, None),
-        Fault::Read { fail_after } => (Operation::Read, vec![fail_after], None, None),
-        Fault::Write { fail_after } => (Operation::Write, vec![fail_after], None, None),
-        Fault::Alloc { fail_after } => (Operation::Alloc, vec![fail_after], None, None),
-        Fault::Send { fail_after } => (Operation::Send, vec![fail_after], None, None),
-        Fault::Probabilistic { op, probability } => (op, vec![], Some(probability), None),
-        Fault::Persistent { op, fail_after } => (op, vec![], None, Some(fail_after)),
-        Fault::Multiple { op, fail_points } => (op, fail_points, None, None),
+pub(crate) fn inject_into_state(state: &mut GlobalState, fault: Fault) -> Result<(), InjectionError> {
+    let op = fault.operation();
+    let op_state = state.get_mut(op);
+    let c = op_state.calls;
+
+    let (new_points, prob, persist) = match fault {
+        Fault::Mmap { fail_after } => (vec![c.saturating_add(fail_after)], None, None),
+        Fault::Read { fail_after } => (vec![c.saturating_add(fail_after)], None, None),
+        Fault::Write { fail_after } => (vec![c.saturating_add(fail_after)], None, None),
+        Fault::Alloc { fail_after } => (vec![c.saturating_add(fail_after)], None, None),
+        Fault::Send { fail_after } => (vec![c.saturating_add(fail_after)], None, None),
+        Fault::Probabilistic { probability, .. } => (vec![], Some(probability), None),
+        Fault::Persistent { fail_after, .. } => (vec![], None, Some(c.saturating_add(fail_after))),
+        Fault::Multiple { fail_points, .. } => (
+            fail_points
+                .into_iter()
+                .map(|p| c.saturating_add(p))
+                .collect(),
+            None,
+            None,
+        ),
     };
 
+    // Re-get op_state after borrow
     let op_state = state.get_mut(op);
 
     // Validate ALL new points BEFORE mutating any state, so a duplicate (against
